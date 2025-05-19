@@ -1,0 +1,204 @@
+{
+  "asset": {
+    "generator": "Babylon.js v7.44.0",
+    "version": "2.0"
+  },
+  "buffers": [
+    {
+      "byteLength": 207816,
+      "uri": "exported.bin"
+    }
+  ],
+  "nodes": [
+    {
+      "name": "BoomBox",
+      "translation": [0.01, 0, 0.05],
+      "rotation": [0, 1, 0, 0],
+      "mesh": 0
+    },
+    {
+      "name": "testCamera",
+      "translation": [0, 0, 0],
+      "rotation": [0, 1, 0, 0],
+      "camera": 0
+    }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 1,
+            "NORMAL": 2,
+            "TANGENT": 3,
+            "TEXCOORD_0": 4
+          },
+          "material": 0,
+          "mode": 4,
+          "indices": 0
+        }
+      ]
+    }
+  ],
+  "cameras": [
+    {
+      "type": "perspective",
+      "name": "camera1",
+      "perspective": {
+        "aspectRatio": 0.9868686868686869,
+        "yfov": 0.8,
+        "znear": 0.01,
+        "zfar": 100
+      }
+    }
+  ],
+  "scenes": [
+    {
+      "nodes": [0, 1]
+    }
+  ],
+  "scene": 0,
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 42900,
+      "byteStride": 12
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 42900,
+      "byteLength": 42900,
+      "byteStride": 12
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 85800,
+      "byteLength": 57200,
+      "byteStride": 16
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 143000,
+      "byteLength": 28600,
+      "byteStride": 8
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 171600,
+      "byteLength": 36216
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 4,
+      "componentType": 5123,
+      "count": 18108,
+      "type": "SCALAR",
+      "byteOffset": 0
+    },
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 3575,
+      "type": "VEC3",
+      "min": [
+        -0.009921154007315636, -0.00977163016796112, -0.010076245293021202
+      ],
+      "max": [0.009921154007315636, 0.00977163016796112, 0.010076245293021202],
+      "normalized": false,
+      "byteOffset": 0
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 3575,
+      "type": "VEC3",
+      "normalized": false,
+      "byteOffset": 0
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 3575,
+      "type": "VEC4",
+      "normalized": false,
+      "byteOffset": 0
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5126,
+      "count": 3575,
+      "type": "VEC2",
+      "normalized": false,
+      "byteOffset": 0
+    }
+  ],
+  "materials": [
+    {
+      "name": "BoomBox_Mat",
+      "occlusionTexture": {
+        "index": 1,
+        "strength": 1
+      },
+      "normalTexture": {
+        "index": 2
+      },
+      "emissiveTexture": {
+        "index": 3
+      },
+      "emissiveFactor": [1, 1, 1],
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [1, 1, 1, 1],
+        "baseColorTexture": {
+          "index": 0
+        },
+        "metallicRoughnessTexture": {
+          "index": 1
+        }
+      }
+    }
+  ],
+  "textures": [
+    {
+      "source": 0,
+      "sampler": 0
+    },
+    {
+      "source": 1,
+      "sampler": 0
+    },
+    {
+      "source": 2,
+      "sampler": 0
+    },
+    {
+      "source": 3,
+      "sampler": 0
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987
+    }
+  ],
+  "images": [
+    {
+      "name": "BoomBox_Mat (Base Color)",
+      "uri": "BoomBox_Mat (Base Color).png"
+    },
+    {
+      "name": "BoomBox_Mat (Metallic Roughness)",
+      "uri": "BoomBox_Mat (Metallic Roughness).png"
+    },
+    {
+      "name": "BoomBox_Mat (Normal)",
+      "uri": "BoomBox_Mat (Normal).png"
+    },
+    {
+      "name": "BoomBox_Mat (Emissive)",
+      "uri": "BoomBox_Mat (Emissive).png"
+    }
+  ]
+}
