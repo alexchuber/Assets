@@ -12,14 +12,14 @@
   "nodes": [
     {
       "name": "BoomBox",
-      "translation": [0.01, 0, 0.05],
+      "translation": [-0.01, 0, -0.05],
       "rotation": [0, 1, 0, 0],
       "mesh": 0
     },
     {
       "name": "testCamera",
       "translation": [0, 0, 0],
-      "rotation": [0, 1, 0, 0],
+      "rotation": [0, 0, 0, 1],
       "camera": 0
     }
   ],
