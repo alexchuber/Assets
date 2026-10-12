@@ -1,0 +1,95 @@
+name: Sync upstream to prod
+
+# main retains the personal demos/repros; only prod mirrors BabylonJS/Assets.
+# UPSTREAM_SYNC_TOKEN needs Contents and Workflows read/write for this repository.
+# This repository is not an upstream fork, so changed commits need Git transfer.
+# No assets are checked out or executed. Unchanged hourly runs transfer nothing.
+# prod is an exact mirror: commits made only there are overwritten.
+# Schedules are best-effort and may need re-enabling after 60 days of inactivity.
+on:
+    schedule:
+        - cron: "17 * * * *"
+    workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+    group: sync-upstream-prod
+    cancel-in-progress: false
+
+jobs:
+    sync:
+        if: github.repository == 'alexchuber/Assets' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        env:
+            GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+            GH_HOST: github.com
+            TARGET_BRANCH: prod
+        steps:
+            - name: Mirror official Assets into prod
+              shell: bash
+              run: |
+                  set -euo pipefail
+
+                  fail() {
+                    echo "::error::$1"
+                    exit 1
+                  }
+
+                  [[ -n "$GH_TOKEN" ]] || fail "Set the UPSTREAM_SYNC_TOKEN repository Actions secret before running."
+                  [[ "$GITHUB_REPOSITORY" == "alexchuber/Assets" && "$TARGET_BRANCH" == "prod" ]] ||
+                    fail "Only alexchuber/Assets:prod may be updated."
+
+                  metadata=$(gh api repos/alexchuber/Assets)
+                  default_branch=$(jq -er '.default_branch | select(type == "string" and length > 0)' <<< "$metadata")
+                  [[ "$GITHUB_REF" == "refs/heads/$default_branch" && "$TARGET_BRANCH" != "$default_branch" ]] ||
+                    fail "Run from the default branch; never overwrite the personal default branch."
+
+                  upstream_branch=$(curl --fail --silent --show-error \
+                    -H "Accept: application/vnd.github+json" \
+                    https://api.github.com/repos/BabylonJS/Assets | jq -er '.default_branch | select(type == "string" and length > 0)')
+                  encoded_branch=$(jq -rn --arg branch "$upstream_branch" '$branch | @uri')
+                  upstream_sha=$(curl --fail --silent --show-error \
+                    -H "Accept: application/vnd.github+json" \
+                    "https://api.github.com/repos/BabylonJS/Assets/branches/$encoded_branch" | jq -er '.commit.sha')
+                  [[ "$upstream_sha" =~ ^[0-9a-f]{40}$ ]] || fail "Upstream did not return a valid commit SHA."
+
+                  target_ref="refs/heads/$TARGET_BRANCH"
+                  matching_refs=$(gh api "repos/alexchuber/Assets/git/matching-refs/heads/$TARGET_BRANCH")
+                  previous_sha=$(jq -r --arg ref "$target_ref" '
+                    map(select(.ref == $ref)) |
+                    if length == 0 then ""
+                    elif length == 1 then .[0].object.sha
+                    else error("Multiple exact target references returned")
+                    end
+                  ' <<< "$matching_refs")
+                  [[ -z "$previous_sha" || "$previous_sha" =~ ^[0-9a-f]{40}$ ]] ||
+                    fail "The target reference did not return a valid commit SHA."
+
+                  if [[ "$previous_sha" == "$upstream_sha" ]]; then
+                    status="Already current"
+                  else
+                    mirror="$RUNNER_TEMP/assets-upstream.git"
+                    git init --bare --quiet "$mirror"
+                    git -C "$mirror" -c credential.helper= -c http.extraHeader= \
+                      fetch --quiet --no-tags https://github.com/BabylonJS/Assets.git "$upstream_sha"
+                    fetched_sha=$(git -C "$mirror" rev-parse FETCH_HEAD)
+                    [[ "$fetched_sha" == "$upstream_sha" ]] || fail "Fetched assets do not match the captured upstream commit."
+                    gh auth setup-git --hostname github.com
+                    git -C "$mirror" push --quiet \
+                      "--force-with-lease=$target_ref:$previous_sha" \
+                      https://github.com/alexchuber/Assets.git "$upstream_sha:$target_ref"
+                    if [[ -z "$previous_sha" ]]; then status="Created"; else status="Updated"; fi
+                  fi
+
+                  actual_sha=$(gh api "repos/alexchuber/Assets/git/ref/heads/$TARGET_BRANCH" --jq '.object.sha')
+                  [[ "$actual_sha" == "$upstream_sha" ]] || fail "prod does not match the captured upstream commit."
+
+                  {
+                    printf '## Upstream mirror: %s\n\n' "$status"
+                    printf -- '- Source: `BabylonJS/Assets:%s`\n' "$upstream_branch"
+                    printf -- '- Target: `alexchuber/Assets:prod`\n'
+                    printf -- '- Previous commit: `%s`\n' "${previous_sha:-not yet created}"
+                    printf -- '- Upstream commit: `%s`\n' "$upstream_sha"
+                  } >> "$GITHUB_STEP_SUMMARY"
