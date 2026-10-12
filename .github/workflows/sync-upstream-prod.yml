@@ -33,7 +33,7 @@ jobs:
                   set -euo pipefail
 
                   fail() {
-                    echo "::error::$1"
+                    echo "::error::$1" >&2
                     exit 1
                   }
 
@@ -79,7 +79,8 @@ jobs:
                     gh auth setup-git --hostname github.com
                     git -C "$mirror" push --quiet \
                       "--force-with-lease=$target_ref:$previous_sha" \
-                      https://github.com/alexchuber/Assets.git "$upstream_sha:$target_ref"
+                      https://github.com/alexchuber/Assets.git "$upstream_sha:$target_ref" ||
+                        fail "Cannot push prod. Check UPSTREAM_SYNC_TOKEN includes alexchuber/Assets with Contents and Workflows write access, and allows this branch update."
                     if [[ -z "$previous_sha" ]]; then status="Created"; else status="Updated"; fi
                   fi
 
