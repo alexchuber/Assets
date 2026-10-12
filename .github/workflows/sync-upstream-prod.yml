@@ -3,6 +3,7 @@ name: Sync upstream to prod
 # main retains the personal demos/repros; only prod mirrors BabylonJS/Assets.
 # UPSTREAM_SYNC_TOKEN needs Contents and Workflows read/write for this repository.
 # This repository is not an upstream fork, so changed commits need Git transfer.
+# Initial history is uploaded in segments below GitHub's 2 GiB push limit.
 # No assets are checked out or executed. Unchanged hourly runs transfer nothing.
 # prod is an exact mirror: commits made only there are overwritten.
 # Schedules are best-effort and may need re-enabling after 60 days of inactivity.
@@ -26,6 +27,7 @@ jobs:
             GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
             GH_HOST: github.com
             TARGET_BRANCH: prod
+            MAX_PUSH_BYTES: "1073741824"
         steps:
             - name: Mirror official Assets into prod
               shell: bash
@@ -40,6 +42,8 @@ jobs:
                   [[ -n "$GH_TOKEN" ]] || fail "Set the UPSTREAM_SYNC_TOKEN repository Actions secret before running."
                   [[ "$GITHUB_REPOSITORY" == "alexchuber/Assets" && "$TARGET_BRANCH" == "prod" ]] ||
                     fail "Only alexchuber/Assets:prod may be updated."
+                  [[ "$MAX_PUSH_BYTES" =~ ^[1-9][0-9]{0,9}$ ]] && (( MAX_PUSH_BYTES <= 1073741824 )) ||
+                    fail "The upload budget must be a positive number no greater than 1 GiB."
 
                   metadata=$(gh api repos/alexchuber/Assets)
                   default_branch=$(jq -er '.default_branch | select(type == "string" and length > 0)' <<< "$metadata")
@@ -77,10 +81,64 @@ jobs:
                     fetched_sha=$(git -C "$mirror" rev-parse FETCH_HEAD)
                     [[ "$fetched_sha" == "$upstream_sha" ]] || fail "Fetched assets do not match the captured upstream commit."
                     gh auth setup-git --hostname github.com
-                    git -C "$mirror" push --quiet \
-                      "--force-with-lease=$target_ref:$previous_sha" \
-                      https://github.com/alexchuber/Assets.git "$upstream_sha:$target_ref" ||
-                        fail "Cannot push prod. Check UPSTREAM_SYNC_TOKEN includes alexchuber/Assets with Contents and Workflows write access, and allows this branch update."
+
+                    expected_sha="$previous_sha"
+                    uploaded_base=""
+                    if [[ -n "$previous_sha" ]]; then
+                      git -C "$mirror" fetch --quiet --no-tags https://github.com/alexchuber/Assets.git "$previous_sha"
+                      if git -C "$mirror" merge-base --is-ancestor "$previous_sha" "$upstream_sha"; then
+                        uploaded_base="$previous_sha"
+                      else
+                        comparison_status=$?
+                        [[ "$comparison_status" == 1 ]] || fail "Cannot compare the existing prod history with upstream."
+                      fi
+                    fi
+
+                    unuploaded_bytes() {
+                      local revisions=("$1")
+                      if [[ -n "$uploaded_base" ]]; then revisions+=("^$uploaded_base"); fi
+                      git -C "$mirror" rev-list --objects --no-object-names "${revisions[@]}" |
+                        git -C "$mirror" cat-file --batch-check='%(objectsize)' |
+                        awk '{ if (NF != 1 || $1 !~ /^[0-9]+$/) exit 1; total += $1 + 32 } END { printf "%.0f\n", total }'
+                    }
+
+                    revisions=("$upstream_sha")
+                    if [[ -n "$uploaded_base" ]]; then revisions+=("^$uploaded_base"); fi
+                    history=$(git -C "$mirror" rev-list --first-parent --reverse "${revisions[@]}")
+                    [[ -n "$history" ]] || fail "No upstream history is available for the requested update."
+                    commits=()
+                    while IFS= read -r commit; do commits+=("$commit"); done <<< "$history"
+
+                    # Reachable history grows monotonically, allowing safe upload boundaries.
+                    start=0
+                    while (( start < ${#commits[@]} )); do
+                      low=$start
+                      high=$((${#commits[@]} - 1))
+                      selected=-1
+                      while (( low <= high )); do
+                        middle=$(((low + high) / 2))
+                        bytes=$(unuploaded_bytes "${commits[middle]}") ||
+                          fail "Cannot measure the upstream objects needed for an upload."
+                        if (( bytes <= MAX_PUSH_BYTES )); then
+                          selected=$middle
+                          low=$((middle + 1))
+                        else
+                          high=$((middle - 1))
+                        fi
+                      done
+                      (( selected >= start )) ||
+                        fail "A single upstream history segment exceeds the safe upload budget."
+                      candidate="${commits[selected]}"
+                      printf 'Uploading upstream history through %s\n' "$candidate"
+                      git -C "$mirror" push --quiet \
+                        "--force-with-lease=$target_ref:$expected_sha" \
+                        https://github.com/alexchuber/Assets.git "$candidate:$target_ref" ||
+                          fail "Assets history upload failed; inspect the Git error above. The next run can resume an interrupted upload."
+                      expected_sha="$candidate"
+                      uploaded_base="$candidate"
+                      start=$((selected + 1))
+                    done
+                    [[ "$expected_sha" == "$upstream_sha" ]] || fail "The uploaded history did not reach the captured upstream commit."
                     if [[ -z "$previous_sha" ]]; then status="Created"; else status="Updated"; fi
                   fi
 
